@@ -1,0 +1,108 @@
+{
+  // ─── 内部服务（WAMP + 浏览器心跳 + catservice.js）──────────────────────────
+  "internal": {
+    "port": 10067,            // 内部服务端口，浏览器通过 ws://localhost:{port} 连接
+    "host": "0.0.0.0"        // 监听地址，浏览器需本机可达
+  },
+
+  // ─── 外部 API（/call, /batch, /health, /kill, /instances）────────────────────
+  "api": {
+    "port": 10068,            // 外部 API 端口
+    "host": "0.0.0.0",       // '0.0.0.0' 允许外部访问，'127.0.0.1' 仅本机
+    "auth_key": "YOUR_AUTH_KEY_HERE"  // 鉴权密钥，为空则不鉴权；调用时需通过 header X-Auth-Key 或 query ?key= 传入
+  },
+
+  // ─── WAMP 路由连接参数 ─────────────────────────────────────────────────────
+  "wamp": {
+    "realm": "catrpc",              // WAMP realm 名称，需与浏览器端 CatWebService.js 一致
+    "max_retries": -1,              // -1 = 无限重试
+    "retry_delay_growth": 1,        // 重试间隔增长倍数（1 = 不增长）
+    "initial_retry_delay": 3,       // 首次重试等待秒数
+    "max_retry_delay": 15           // 最大重试等待秒数
+  },
+
+  // ─── 浏览器实例池 ──────────────────────────────────────────────────────────
+  "pool": {
+    "size": 1,                      // 同时维护的浏览器实例数量
+    "browser_ttl_ms": 45000,        // 超过此时间无心跳视为离线（毫秒）
+    "reopen_cooldown_ms": 60000,    // 两次补充实例的最短间隔，防止重复 spawn
+    "spawn_interval_ms": 60000      // 多实例启动时，每个实例之间的间隔（毫秒）
+  },
+
+  // ─── RPC 调用 ──────────────────────────────────────────────────────────────
+  "rpc_timeout_ms": 10000,          // 单次 RPC 调用超时（毫秒），签名操作不应超过此时间
+
+  // ─── 浏览器启动参数 ────────────────────────────────────────────────────────
+  "browser": {
+    "channel": "msedge",            // Chromium 通道：msedge / chrome / chromium
+    "headless": false,              // true = 无头模式，false = 有界面
+    "window_size": "1280,800",      // 浏览器窗口大小（宽,高）
+    "args": [
+      "--disable-blink-features=AutomationControlled",  // 隐藏自动化特征
+      "--disable-web-security",                         // 禁用同源策略
+      "--disable-site-isolation-trials",                // 禁用站点隔离
+      "--allow-running-insecure-content",               // 允许 HTTP 内容
+      "--disable-features=IsolateOrigins,site-per-process", // 禁用进程隔离
+      "--no-sandbox",                   // 禁用沙箱（容器/CI 环境必须）
+      "--disable-dev-shm-usage",        // 避免 /dev/shm 空间不足
+      "--disable-setuid-sandbox"        // 禁用 setuid 沙箱
+    ]
+  },
+
+  // ─── 目标页面配置 ──────────────────────────────────────────────────────
+  "page": {
+    "url": "https://example.com/YOUR_PAGE_HERE",  // 打开的目标页面
+    "goto_timeout_ms": 60000,                  // 页面加载超时（毫秒）
+    "rpc_wait_timeout_ms": 60000               // 等待 RPC 注册完成的超时（毫秒）
+  },
+
+  // ─── CSP 处理与脚本注入 ─────────────────────────────────────────────────
+  "csp": {
+    "patterns": [                     // 只有匹配这些 URL 模式的请求才会移除 CSP 并注入脚本
+      "https://example.com/**"     // 支持通配符 * 和 **，** 匹配任意多级路径；为空则匹配所有；按实际目标域名配置
+    ],                                   // 按实际目标域名配置即可
+    "resource_types": ["document"],   // 需要处理的资源类型，常见值：document / stylesheet / script / image 等；为空则处理所有类型
+    "main_frame_only": true           // true = 仅处理主框架请求，false = 子框架（iframe）也会处理
+  },
+
+  // ─── js请求拦截替换 ─────────────────────────────────────────────────────────
+  "intercepts": [                             // URL 匹配规则 → 替换为本地文件
+    {
+      "pattern": "YOUR_PATTERN_HERE",              // Playwright route 匹配模式
+      "file": "YOUR_SCRIPT_FILE_HERE",                  // src/ 目录下的本地文件名
+      "content_type": "application/javascript; charset=utf-8"
+    }
+  ],
+
+  // ─── 浏览器端 RPC 注册配置 ─────────────────────────────────────────────────
+  "rpc": {
+    //    需要自行修改，保证函数的暴露
+    "sdk_window_prop": "YOUR_SDK_PROP_HERE",             // window 上 SDK 对象的属性名
+    "topics": [                                // 自动注册的 RPC topic 列表
+      {
+        "topic": "com.example.method1",          // WAMP topic 名称（全局 + 实例级）
+        "method": "YOUR_METHOD_HERE",                    // SDK 对象上的方法名
+        "concurrency": 30,                     // 并发数
+        "invoke": "first"                      // 多实例时的调用策略：first / roundrobin / random
+      },
+      {
+        "topic": "com.example.method2",
+        "method": "YOUR_METHOD_HERE",
+        "concurrency": 30,
+        "invoke": "first"
+      },
+      {
+        "topic": "com.example.method3",
+        "method": "YOUR_METHOD_HERE",
+        "concurrency": 30,
+        "invoke": "first"
+      }
+    ]
+  },
+
+  // ─── 代理配置 ──────────────────────────────────────────────────────────────
+  "proxy": {
+    "enabled": true,                          // true = 浏览器流量走代理，false = 直连
+    "server": "http://YOUR_PROXY_SERVER_HERE" // 代理服务器地址（V2Ray / Clash 等）
+  }
+}
